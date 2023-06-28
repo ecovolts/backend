@@ -1,0 +1,287 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id
+  email           String
+  name            String
+  passwordEnabled Boolean   @default(false)
+  avatarUrl       String?
+  corporateName   String?
+  corporateLogo   String?
+  accountType     String? // oauth OU owner
+  accessLevel     Int       @default(0) // 0 -> usuário(trial), 1 -> colaborador(), 2 -> integrador (assinante), 3 -> administrator
+  blocked         Boolean   @default(false)
+  reasonBlocking  String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime?
+  deleted_at      DateTime?
+
+  account      Account[]
+  colaborator  Colaborator[]
+  subscription Subscription[]
+  powerPlant   PowerPlant[]
+
+  @@map("users")
+}
+
+model Account {
+  id                  String  @id @default(uuid())
+  user_id             String
+  type                String
+  provider            String
+  provider_account_id String
+  refresh_token       String?
+  access_token        String?
+  expires_at          Int?
+  token_type          String?
+  scope               String?
+  id_token            String?
+  session_state       String?
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@unique([provider, provider_account_id])
+  @@map("accounts")
+}
+
+// adicionado por um integrador no modulo de gerenciamento de colaboradores
+// ou o colaborador já pode ser um integrador cadastrado e ter permissao para
+// ser colaborador de uma usina que não foi integrada por ele.
+model Colaborator {
+  id            String @id @default(uuid())
+  integrator_id String @unique
+  email         String
+  name          String
+
+  user User @relation(fields: [integrator_id], references: [id])
+
+  @@map("colaborators")
+}
+
+// tabela de assinaturas
+model Subscription {
+  id                String    @id @default(uuid())
+  currency          String
+  user_id           String
+  plan_id           String
+  type              Int       @default(0) // 0 -> trial, 1 -> basic, 2 -> pro, 3 -> supreme
+  active            Boolean   @default(true)
+  blocked           Boolean   @default(false)
+  subscriptionValue Decimal
+  formOfPayment_id  String?
+  trialMessage      String // Seu acesso gratuito tem um tempo de expiração, faça sua assinatura e evite interrupção do seu acesso
+  created_at        DateTime  @default(now())
+  nextInvoice_at    DateTime?
+  updated_at        DateTime?
+
+  user          User           @relation(fields: [user_id], references: [id])
+  plan          Plan           @relation(fields: [plan_id], references: [id])
+  formOfPayment FormOfPayment? @relation(fields: [formOfPayment_id], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Plan {
+  id             String    @id @default(uuid())
+  name           String
+  valor          Decimal
+  active         Boolean   @default(true) // o tipo de plano pode ser ativado ou inativado na plataforma
+  numberOfPlants Int
+  created_at     DateTime  @default(now())
+  updated_at     DateTime?
+
+  subscription Subscription[]
+
+  @@map("plans")
+}
+
+model FormOfPayment {
+  id             String    @id @default(uuid())
+  name           String
+  type           Int // 1 -> dinheiro(pix) 2 -> cartão 3 -> boleto  
+  active         Boolean   @default(true) // forma de pagamento pode ser ativado ou inativado na plataforma
+  creditCardFlag String
+  provider       String // 1 -> stripe(cartao, boleto) 2 -> provi(tipo financiamento)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime?
+
+  subscription Subscription[]
+
+  @@map("formOfPayments")
+}
+
+model PowerPlant {
+  id                      String    @id @default(uuid())
+  type                    Int // 1 -> generation, 2 -> consumption, 3 -> grid, 4 -> energetic balance
+  name                    String
+  user_id                 String
+  ownerName               String
+  thirdPartyPowerPlant_id String
+  thirdPartyName          String // select field no form
+  active                  Boolean   @default(true)
+  monitorable             Boolean   @default(true)
+  classType               Int // 1 -> Residencial, 2 -> Comercial, 3 -> Industrial, 4 -> Rural
+  imageUrl                String
+  concessionaire_id       String
+  concessionaireName      String // select field no form
+  status                  Int // 1 -> nao-monitorada 2 -> normal 3 -> offline 4 -> sem-geracao
+  excluded                Boolean   @default(false)
+  installedPower          Decimal?
+  totalEnergy             Decimal? // kWp
+  totalGeneratedEnergy    Decimal? // kWh
+  totalConsumedEnergy     Decimal?
+  totalEconomy            Decimal?
+  totalInjectedEnergy     Decimal?
+  environmentCO2          Decimal?
+  environmentTrees        Decimal?
+  performance30Days       Decimal?
+  performance12Days       Decimal?
+  overallPerformance      Decimal?
+  tariffGroup             Int // select field no form
+  consumptionClass        Int // select field no form
+  tariffModality          Int // select field no form
+  supplyType              Int // select field no form
+  sceeModality            Int // select field no form
+  installed_at            DateTime
+  initGeneration_at       DateTime
+  created_at              DateTime  @default(now())
+  updated_at              DateTime?
+  deleted_at              DateTime?
+
+  concessionaire       Concessionaire       @relation(fields: [concessionaire_id], references: [id])
+  thirdPartyPowerPlant ThirdPartyPowerPlant @relation(fields: [thirdPartyPowerPlant_id], references: [id])
+  user                 User                 @relation(fields: [user_id], references: [id])
+
+  TypePowerPlant TypePowerPlant[]
+  Project        Project[]
+
+  @@map("powerPlants")
+}
+
+model Project {
+  id                  String  @id @default(uuid())
+  powerPlant_id       String
+  januaryProduction   Decimal
+  februaryProduction  Decimal
+  marchProduction     Decimal
+  aprilProduction     Decimal
+  mayProduction       Decimal
+  juneProduction      Decimal
+  julyProduction      Decimal
+  augustProduction    Decimal
+  septemberProduction Decimal
+  octoberProduction   Decimal
+  novemberProduction  Decimal
+  decemberProduction  Decimal
+  averageProduction   Decimal
+
+  powerPlant PowerPlant @relation(fields: [powerPlant_id], references: [id])
+}
+
+model ThirdPartyPowerPlant {
+  id          String   @id @default(uuid())
+  type        Int // 1 -> generation, 2 -> consumption, 3 -> grid, 4 -> energetic balance
+  name        String
+  active      Boolean  @default(false)
+  monitorable Boolean  @default(false)
+  imageUrl    String
+  created_at  DateTime @default(now())
+  updated_at  DateTime
+  deleted_at  DateTime
+
+  powerPlant PowerPlant[]
+
+  @@map("thirdPartyPowerPlants")
+}
+
+model TypePowerPlant {
+  id            String @id @default(uuid())
+  powerPlant_id String
+  monitoring    String
+  description   String
+
+  powerPlant PowerPlant @relation(fields: [powerPlant_id], references: [id])
+
+  @@map("typePowerPlant")
+}
+
+model Concessionaire {
+  id             String   @id @default(uuid())
+  name           String
+  description    String
+  recoverInvoice Boolean  @default(false)
+  group          String
+  queuedSince    DateTime
+  AneelName      String
+
+  powerPlant PowerPlant[]
+
+  @@map("concessionaires")
+}
+
+model TariffModality {
+  id   String @id @default(uuid())
+  name String
+  type Int // 1 -> Tarifa verde 2 -> Tarifa azul 3 -> Convencional Binomia 4 -> Convencional 5 -> Tarifa branca
+
+  @@map("tariffModalities")
+}
+
+model TariffGroup {
+  id   String @id @default(uuid())
+  name String
+  type Int // 1 -> A1 | 2 -> A2 | 3 -> A3 | 4 -> A3a | 5 -> A4 | 6 -> AS | 7 -> B1 | 8 -> B2 | 9 -> B3 | 10 -> B4
+
+  @@map("tariffGroups")
+}
+
+model ConsumptionClass {
+  id   String @id @default(uuid())
+  name String
+  type Int // 1 -> Residencial 2 -> Industrial -> 3 Comercio, servicos e outros 4 -> Rural 5 -> Poder Público 6 -> Iluminação pública 7 -> Serviço publico 8 -> Consumo  proprio 9 -> Nao se aplica
+
+  @@map("consumptionClasses")
+}
+
+model SupplyType {
+  id   String @id @default(uuid())
+  name String
+  type Int // 1 -> Monofasico 2 -> Bifasico (2 condutores) 3 -> Bifasico (3 condutores) 4 -> Trifasico
+  cd   Int // 1 -> Monofasico CD(30) 2 -> Bifasico (2 condutores) CD(30) 3 -> Bifasico (3 condutores) CD(50) 4 -> Trifasico CD(100)
+
+  @@map("supplyTypes")
+}
+
+model SceeModality {
+  id       String @id @default(uuid())
+  name     String // Geração junto à carga, Autoconsumo Remoto, Empreendimento com Múltiplas Unidades Consumidoras, Geração Compartilhada
+  nickname String // GJC, AR, EMUCs, GC
+
+  @@map("sceeModality")
+}
+
+model Address {
+  id           String  @id @default(uuid())
+  zipcode      String
+  state        String
+  country      String
+  city         String
+  neighborhood String
+  street       String
+  number       Int
+  complement   String
+  latitude     Decimal
+  longitude    Decimal
+
+  @@map("addresses")
+}

@@ -1,0 +1,23 @@
+version: '3.5'
+
+volumes:
+  ecovolts_db_data:
+
+networks:
+    ecovolts-backend-network:
+
+services:
+    postgres:
+        image: postgres
+        container_name: ecovolts-db
+        restart: always
+        volumes:
+            - ecovolts_db_data:/var/lib/postgresql/data
+        ports:
+            - 5432:5432
+        environment:
+            POSTGRES_DB: ecovoltsdb
+            POSTGRES_USER: ecovoltsdb
+            POSTGRES_PASSWORD: Th3o9M+H2hBLSN8ovIQnJWtF7HZ2DMqAvs17+OCQdqI=
+        networks:
+            - ecovolts-backend-network
