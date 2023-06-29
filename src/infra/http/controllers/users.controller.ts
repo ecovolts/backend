@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Req, Query } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+  Query,
+  UseGuards,
+} from '@nestjs/common'
 import { FastifyRequest } from 'fastify'
 
 import { BASE_API_URL } from '@src/constants/api'
@@ -8,6 +17,7 @@ import { AuthUser } from '@application/use-cases/user/auth.use-case'
 import { FindAllUsers } from '@application/use-cases/user/get-all.use-case'
 import { CreateUser } from '@application/use-cases/user/create.use-case'
 import { FindUserById } from '@application/use-cases/user/get-by-id.use-case'
+import { AuthGuard } from '@infra/auth/auth.guard'
 
 @Controller(`${BASE_API_URL}/users`)
 export class UsersController {
@@ -18,11 +28,13 @@ export class UsersController {
     private createUser: CreateUser,
   ) {}
 
+  @UseGuards(AuthGuard)
   @Get('/get')
   findAll(@Query('page') page: number) {
     return this.findAllUsers.execute(page)
   }
 
+  @UseGuards(AuthGuard)
   @Get(`/get/:id`)
   async findById(@Param('id') id: string) {
     return this.findUserById.execute(id)

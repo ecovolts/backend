@@ -4,18 +4,20 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { User as UserClerk, clerkClient } from '@clerk/clerk-sdk-node'
-import { FastifyRequest } from 'fastify'
 import { getAuth } from '@clerk/fastify'
 
-import { UserInterface } from '@infra/http/dtos/user.dto'
-import { OAUTH, OWNERSHIP_AUTH } from '@src/constants/variables'
 import { paginator } from '@src/utils/paginator'
+import { OAUTH, OWNERSHIP_AUTH } from '@src/constants/variables'
 
 import { PaginatedResult } from '@core/dtos/paginated-result'
+
+import { UserInterface } from '@infra/http/dtos/user.dto'
 import { PostgreSqlService } from '@infra/database/prisma/postgresql.service'
+
 import { UsersRepository } from '@application/repositories/users.repository'
 import { User } from '@application/entities/user/user.entity'
 import { Email } from '@application/entities/user/email'
+import { FastifyRequest } from 'fastify'
 
 const paginate = paginator({ perPage: 2 })
 
@@ -78,8 +80,6 @@ export class PrismaUsersRepository implements UsersRepository {
       },
     })
 
-    console.log('userExists', userExists)
-
     if (!userExists) {
       await this.postgresql.user.create({
         data: {
@@ -97,10 +97,10 @@ export class PrismaUsersRepository implements UsersRepository {
   }
 
   async auth(request: FastifyRequest): Promise<void> {
-    const { userId, getToken } = getAuth(request)
+    const [type, token] = request.headers.authorization?.split(' ') ?? []
+    const { userId, sessionClaims } = getAuth(request)
 
     const userClerk: UserClerk = await clerkClient.users.getUser(userId ?? '')
-    const token = await getToken()
 
     let user = await this.postgresql.user.findUnique({
       where: {
@@ -150,7 +150,9 @@ export class PrismaUsersRepository implements UsersRepository {
               userClerk.externalAccounts.length > 0
                 ? userClerk.externalAccounts[0].approvedScopes
                 : null,
-            id_token: String(token),
+            token_type: type,
+            access_token: String(token),
+            session_state: sessionClaims?.sid ? 'active' : 'inactive',
           },
         })
       } else {
@@ -159,7 +161,39 @@ export class PrismaUsersRepository implements UsersRepository {
             id: account?.id,
           },
           data: {
-            id_token: String(token),
+            access_token: String(token),
+          },
+        })
+      }
+    }
+  }
+
+  // essa rota deve existir? (quero atualizar o session_state para inativo no logout)
+  async logout(request: FastifyRequest): Promise<void> {
+    const { userId } = getAuth(request)
+
+    const userClerk: UserClerk = await clerkClient.users.getUser(userId ?? '')
+
+    const user = await this.postgresql.user.findUnique({
+      where: {
+        id: userClerk.id,
+      },
+    })
+
+    if (user) {
+      let account = await this.postgresql.account.findFirst({
+        where: {
+          user_id: user?.id,
+        },
+      })
+
+      if (account) {
+        account = await this.postgresql.account.update({
+          where: {
+            id: account?.id,
+          },
+          data: {
+            session_state: 'inactive',
           },
         })
       }
